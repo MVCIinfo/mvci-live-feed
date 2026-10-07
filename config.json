@@ -1,0 +1,20 @@
+{
+  "title": "MVCI 配信情報",
+  "site_url": "https://MVCIinfo.github.io/mvci-live-feed/",
+  "keywords": ["MVCI", "MVC:I", "マーベルVSカプコンインフィニット"],
+  "channels": [
+    {"name": "Ororo n", "id": "UCbZogYHnnzt7JxHoO8TDvpg", "enabled": true},
+    {"name": "机上の空論", "id": "UC7kwcBnPAI39I56s10yuQzQ", "enabled": true},
+    {"name": "Cyber", "id": "UCGWb15jpJU25Gx_ckDcF0Ew", "enabled": false},
+    {"name": "MVCI_Information (@MVCI_Information)", "id": "", "enabled": false},
+    {"name": "habakily (@habakily)", "id": "", "enabled": false},
+    {"name": "reona_1201 (@reona_1201)", "id": "", "enabled": false},
+    {"name": "village_oekaki (@village_oekaki)", "id": "", "enabled": false},
+    {"name": "IMMCHB (@IMMCHB)", "id": "", "enabled": false},
+    {"name": "kyojyu_ch (@kyojyu_ch)", "id": "", "enabled": false},
+    {"name": "JakoMan (@JakoMan)", "id": "", "enabled": false},
+    {"name": "pittofaia (@pittofaia)", "id": "", "enabled": false},
+    {"name": "bossvaraha", "id": "", "enabled": false},
+    {"name": "ルパン-mvci", "id": "", "enabled": false}
+  ]
+}
