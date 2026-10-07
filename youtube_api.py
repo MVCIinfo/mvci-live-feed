@@ -13,11 +13,11 @@ SCOPES = ("https://www.googleapis.com/auth/youtube", "https://www.googleapis.com
 
 
 def credentials_available(env=os.environ) -> bool:
-    return all(env.get(key) for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"))
+    return all(env.get(key, "").strip() for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"))
 
 
 def credentials_present(env=os.environ) -> bool:
-    return any(env.get(key) for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"))
+    return any(env.get(key, "").strip() for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"))
 
 
 class YouTubeAPI:
@@ -42,21 +42,54 @@ class YouTubeAPI:
         if not credentials_available(self.env):
             raise RuntimeError("YouTube OAuth credentials are not configured")
         body = urllib.parse.urlencode({
-            "client_id": self.env["YOUTUBE_CLIENT_ID"],
-            "client_secret": self.env["YOUTUBE_CLIENT_SECRET"],
-            "refresh_token": self.env["YOUTUBE_REFRESH_TOKEN"],
+            "client_id": self.env["YOUTUBE_CLIENT_ID"].strip(),
+            "client_secret": self.env["YOUTUBE_CLIENT_SECRET"].strip(),
+            "refresh_token": self.env["YOUTUBE_REFRESH_TOKEN"].strip(),
             "grant_type": "refresh_token",
-        }).encode("ascii")
+        }).encode("utf-8")
         request = urllib.request.Request(TOKEN_URL, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
         try:
-            data = self._json_request(request)
-        except RuntimeError:
-            raise RuntimeError("OAuth token refresh failed") from None
-        token = data.get("access_token")
+            with self.opener(request, timeout=25) as response:
+                status = getattr(response, "status", 200)
+                raw = response.read()
+        except urllib.error.HTTPError as exc:
+            raw = b""
+            try:
+                raw = exc.read()
+            except OSError:
+                pass
+            raise RuntimeError(self._oauth_error_message(exc.code, raw)) from None
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            # Report only a stable exception category; URLError.reason may contain URLs or details.
+            raise RuntimeError(f"OAuth token refresh could not reach Google ({type(exc).__name__})") from None
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise RuntimeError(f"OAuth token response was not valid JSON (HTTP {status})") from None
+        token = data.get("access_token") if isinstance(data, dict) else None
         if not token:
-            raise RuntimeError("OAuth token refresh failed")
+            raise RuntimeError(self._oauth_error_message(status, raw))
         self._token = token
         return token
+
+    @staticmethod
+    def _oauth_error_message(status: int, body: bytes) -> str:
+        """Translate only safe, documented error codes; never echo response text."""
+        try:
+            decoded = json.loads(body.decode("utf-8"))
+            code = decoded.get("error") if isinstance(decoded, dict) else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            code = None
+        messages = {
+            "invalid_grant": "OAuth refresh failed: invalid_grant — refresh token may be expired or revoked, or paired with a different OAuth client. Compare all three current secret values before reauthorizing.",
+            "invalid_client": "OAuth refresh failed: invalid_client — check that the client ID and secret are the matching pair from the current Desktop OAuth client.",
+            "unauthorized_client": "OAuth refresh failed: unauthorized_client — this OAuth client or grant is not authorized for the requested flow.",
+            "access_denied": "OAuth refresh failed: access_denied — authorization was denied; approve the requested YouTube access for the intended account.",
+            "invalid_request": "OAuth refresh failed: invalid_request — the token request was rejected as malformed; check the OAuth client and refresh token values.",
+        }
+        if isinstance(code, str) and code in messages:
+            return messages[code]
+        return f"OAuth token refresh failed (HTTP {status}); Google returned an unrecognized or empty error response. No response details were exposed."
 
     def call(self, method: str, path: str, params=None, body=None):
         query = urllib.parse.urlencode(params or {}, doseq=True)
