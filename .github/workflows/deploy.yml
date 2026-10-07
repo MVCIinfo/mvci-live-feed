@@ -3,7 +3,7 @@ name: Update and deploy MVCI feed
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '7,22,37,52 * * * *'
   push:
     branches: [main]
 
@@ -28,6 +28,10 @@ jobs:
       - name: Run fixture tests
         run: python -m unittest discover -s tests -v
       - name: Fetch feeds and build static page
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: python build.py
       - uses: actions/upload-pages-artifact@v4
         with:
