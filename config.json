@@ -1,6 +1,8 @@
 {
   "title": "MVCI 配信情報",
   "site_url": "https://MVCIinfo.github.io/mvci-live-feed/",
+  "playlist_id": "PLIA2oKVHJxPs",
+  "max_playlist_additions_per_run": 10,
   "keywords": ["MVCI", "MVC:I", "マーベルVSカプコンインフィニット"],
   "channels": [
     {"name": "Ororo n", "id": "UCbZogYHnnzt7JxHoO8TDvpg", "enabled": true},
