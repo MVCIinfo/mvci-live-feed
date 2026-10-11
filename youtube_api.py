@@ -7,6 +7,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import time
 from datetime import datetime, timezone
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -243,11 +244,16 @@ class YouTubeAPI:
         self.call("PUT", "/playlistItems", {"part": "snippet"}, body)
 
 
-def sync_playlist(api: YouTubeAPI, playlist_id: str, videos: list[dict], selected_id: str | None, max_additions: int = 10) -> dict:
+def sync_playlist(api: YouTubeAPI, playlist_id: str, videos: list[dict], selected_id: str | None, max_additions: int = 10, sleep_fn=None) -> dict:
     """Add current matching candidates without deleting or duplicating playlist entries."""
+    sleep_fn = sleep_fn or time.sleep
     existing_ids, _ = api.playlist_video_ids(playlist_id)
     existing = set(existing_ids)
     by_id = {v["video_id"]: v for v in videos}
+    if selected_id and selected_id not in existing and selected_id not in by_id:
+        raise RuntimeError(f"選択動画を追加できません: playlist={playlist_id} video={selected_id} candidates=0")
+    if selected_id and selected_id not in existing and max_additions <= 0:
+        raise RuntimeError(f"選択動画が未登録ですが追加上限が0以下です: playlist={playlist_id} video={selected_id}; config.json の max_playlist_additions_per_run を1以上にしてください")
     candidates = [video_id for video_id in by_id if video_id not in existing]
     # Guarantee the selected latest entry fits the quota, then add other matches oldest first.
     ordered = []
@@ -261,18 +267,32 @@ def sync_playlist(api: YouTubeAPI, playlist_id: str, videos: list[dict], selecte
         api.add_playlist_video(playlist_id, video_id)
     moved = False
     if selected_id:
-        # Re-read after insertions: every insert at position 0 shifts prior rows down.
-        _, current_rows = api.playlist_video_ids(playlist_id)
+        # Verify the selected item after writes. Retry reads only; never repeat inserts/updates.
+        _, current_rows = _read_selected_with_retry(api, playlist_id, selected_id, sleep_fn)
         selected_row = current_rows.get(selected_id)
         if selected_row:
             position = (selected_row.get("snippet") or {}).get("position")
             if position != 0:
                 api.move_playlist_item_to_top(selected_row, playlist_id)
                 moved = True
-                _, verified_rows = api.playlist_video_ids(playlist_id)
+                _, verified_rows = _read_selected_with_retry(api, playlist_id, selected_id, sleep_fn, require_top=True)
                 verified = verified_rows.get(selected_id)
                 if not verified or (verified.get("snippet") or {}).get("position") != 0:
-                    raise RuntimeError("Selected video could not be moved to playlist position 0")
+                    raise RuntimeError(f"選択動画の先頭配置を確認できません: playlist={playlist_id} video={selected_id} added_this_run={selected_id in additions} cap={max_additions}")
         else:
-            raise RuntimeError("Selected video was not present in playlist after synchronization")
+            raise RuntimeError(f"同期後も選択動画を確認できません: playlist={playlist_id} video={selected_id} added_this_run={selected_id in additions} cap={max_additions}")
     return {"added": additions, "moved_selected": moved, "known_before": len(existing_ids)}
+
+
+def _read_selected_with_retry(api: YouTubeAPI, playlist_id: str, selected_id: str, sleep_fn, require_top: bool = False) -> tuple[list[str], dict[str, dict]]:
+    """Read at most three times (1s, then 3s apart) while waiting for visibility/position."""
+    rows = {}
+    ids = []
+    for attempt, delay in enumerate((0, 1, 3)):
+        if delay:
+            sleep_fn(delay)
+        ids, rows = api.playlist_video_ids(playlist_id)
+        row = rows.get(selected_id)
+        if row and (not require_top or (row.get("snippet") or {}).get("position") == 0):
+            return ids, rows
+    return ids, rows

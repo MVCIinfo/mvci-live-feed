@@ -41,6 +41,8 @@ workflowは15分間隔です。1回ごとに最新動画状態を確認し、チ
 
 YouTube Data APIの標準割当は通常その他のAPI操作で1日10,000ユニットで、プレイリストへの1件挿入は50ユニットです。新規動画の追加が集中すると割当を消費するため、追加上限を `config.json` の `max_playlist_additions_per_run` で調整してください。API割当の変更があればGoogle Cloud Consoleと[公式クォータ資料](https://developers.google.com/youtube/v3/determine_quota_cost)で確認してください。[playlistItems.insertの仕様と手動順序の要件](https://developers.google.com/youtube/v3/docs/playlistItems/insert)
 
+同期後に選択動画が一覧に見つからない場合、読み取りを最大3回（待ち時間1秒、3秒）まで再試行します。先頭へ移動した場合も、位置0を読み取りで確認します。追加・移動操作そのものは再試行しないため、確認できない状態が続けば公開処理を止め、エラーにプレイリストID・動画ID・今回追加したか・上限値を表示します。この再確認は遅延の原因を特定するものではありません。選択動画が未登録で `max_playlist_additions_per_run` が0以下の場合は、書き込み前に設定を1以上にするようエラーを表示します。既に登録済みの選択動画は追加上限0でも位置確認できます。
+
 ## ローカル確認
 
 Python 3の標準ライブラリだけで動きます。フィクスチャテストはネットワークにもOAuthにも接続しません。
