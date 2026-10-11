@@ -25,6 +25,8 @@ NS = {"a": ATOM, "yt": YT}
 TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
 RETRY_DELAYS = (1, 3)
 DEFAULT_EXCLUDE_KEYWORDS = ["MVCI 闘魂部"]
+BADGE_LIVE = ROOT / "assets" / "live-badge.png"
+BADGE_BLANK = ROOT / "assets" / "blank-badge.png"
 
 
 class ChannelFetchError(RuntimeError):
@@ -121,6 +123,16 @@ def normalize_title_for_exclusion(title: str) -> str:
 def is_excluded_title(title: str, exclude_keywords: list[str]) -> bool:
     normalized = normalize_title_for_exclusion(title)
     return any(normalize_title_for_exclusion(keyword) in normalized for keyword in exclude_keywords if keyword.strip())
+
+
+def latest_per_channel(matches: list[dict]) -> list[dict]:
+    """Choose only the newest eligible match for each channel."""
+    selected = {}
+    for video in matches:
+        key = video.get("channel_id") or video.get("channel")
+        if key not in selected or video["published"] > selected[key]["published"]:
+            selected[key] = video
+    return list(selected.values())
 
 
 def live_label(live_state: bool | None) -> str:
@@ -224,15 +236,16 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
     exclude_keywords = config.get("exclude_keywords", DEFAULT_EXCLUDE_KEYWORDS)
     matches = [v for v in matches if not is_excluded_title(v["title"], exclude_keywords)]
     latest = max(matches, key=lambda v: v["published"]) if matches else None
+    playlist_candidates = latest_per_channel(matches)
     state = None
     playlist_result = {"status": "credentials_missing", "added": []}
     if api is not None:
         if latest:
             state = api.live_state(latest["video_id"])
         # Playlist writes are attempted before files are replaced. Any failure blocks publishing.
-        if matches:
+        if playlist_candidates:
             playlist_result = {"status": "synced", **sync_playlist(
-                api, config.get("playlist_id", "PLIA2oKVHJxPs"), [latest],
+                api, config.get("playlist_id", "PLIA2oKVHJxPs"), playlist_candidates,
                 latest["video_id"] if latest else None, int(config.get("max_playlist_additions_per_run", 10)))}
         else:
             playlist_result = {"status": "no_candidates", "added": []}
@@ -243,6 +256,8 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
     write_atomic(output_dir / "index.html", generate_html(latest, warnings, config, state, now, credentials_available(env)).encode("utf-8"))
     write_atomic(output_dir / "feed.xml", rss_feed(latest, config, now, state))
     write_atomic(output_dir / "latest.json", (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    badge_path = BADGE_LIVE if latest and state is True else BADGE_BLANK
+    write_atomic(output_dir / "live-status.png", badge_path.read_bytes())
     return payload
 
 

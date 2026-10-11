@@ -1,6 +1,6 @@
 # MVCI 配信情報フィード（テスト版）
 
-YouTubeの公開チャンネルRSSからMVCI関連タイトルの最新動画を選び、ページ、RSS 2.0、JSONを生成します。`MVCI 闘魂部` を含むタイトルは対象から除外し、残った候補から全ての有効チャンネルを通じて公開日時が最も新しい1本を選びます。YouTube Data API OAuthを設定すると、その選択動画だけを対象プレイリストへ追加するか、既にある場合は先頭へ移します。過去に登録済みの動画は削除しません。ライブ状態によって古い動画へ切り替えることはありません。
+YouTubeの公開チャンネルRSSからMVCI関連タイトルを選び、ページ、RSS 2.0、JSONを生成します。`MVCI 闘魂部` を含むタイトルは対象から除外します。ページ、RSS、JSONには有効チャンネル全体で公開日時が最も新しい1本を表示します。YouTube Data API OAuthを設定すると、プレイリストには各有効チャンネルの最新対象動画を1本ずつ同期し、全体で最も新しい選択動画を先頭に置きます。同じチャンネルの古い候補は追加しません。過去に登録済みの動画は削除しません。ライブ状態によって表示動画を切り替えることはありません。
 
 既定の除外語は `config.json` の `exclude_keywords` で設定できます。項目が無い設定ファイルでは `MVCI 闘魂部` を使います。除外判定では大小文字と空白（半角/全角スペース、改行など）を無視します。`闘魂部` だけを含むタイトルや、`MVCI 決勝 闘魂部` のように語句の間に別の文字があるタイトルは、既定値だけでは除外しません。
 
@@ -8,7 +8,7 @@ YouTubeの公開チャンネルRSSからMVCI関連タイトルの最新動画を
 
 RSSの動画タイトルには状態が付きます。配信中をAPIで確認できた時だけ `配信中！｜`、配信中ではない時は `直近のMVCI配信｜`、API確認できない場合は `配信状態を確認できません｜` です。ライブ状態は `videos.list` の `liveBroadcastContent=live` かつ `actualEndTime` が無い場合だけ配信中とし、APIエラーや不明な値は不明のまま扱います。YouTube RSSの公開日時はライブ開始時刻ではありません。
 
-このページ自体はGitHub Pagesの静的ページです。Wikiの固定見出しを自動で書き換えることはできません。Wikiの見出しは「配信情報」のような汎用表現にして、以下のRSS表示を既存のプレイヤー埋め込みより上に置いてください。RSSが状態ラベルを配信ごとに付けます。
+このページ自体はGitHub Pagesの静的ページです。Wikiの固定見出しを自動で書き換えることはできません。Wikiの見出しは「配信情報」のような汎用表現にしてください。配信中バッジ、RSS状態ラベル、プレイヤーの順に置くWiki記述は `WIKIWIKI-snippet.txt` にあります。バッジはページ全体で選択された最新動画だけをAPIで配信中と確認できた場合に表示します。その他のチャンネル動画が配信中でも、バッジは表示しません。GitHub PagesやWiki側の画像キャッシュによって表示更新が遅れることがあります。
 
 ## 最初に登録されているチャンネル
 
@@ -18,7 +18,7 @@ RSSの動画タイトルには状態が付きます。配信中をAPIで確認�
 
 1. GitHubで公開リポジトリ `MVCIinfo/mvci-live-feed` を開きます。まだ無ければ同名の公開リポジトリを作ります。このパッケージは既存リポジトリを更新する場合にも使えます。
 2. **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にします。
-3. リポジトリのトップに `build.py`、`youtube_api.py`、`config.json`、`README.md`、`.gitignore`、`tests/`、`tools/`、`WIKIWIKI-snippet.txt` をアップロードまたは置き換えます。既に独自に追加したチャンネル設定がある場合は、`config.json`を上書きする前に `channels` の項目を新しい設定へ移してください。`exclude_keywords` が無い場合は標準値 `MVCI 闘魂部` を使います。隠し `.github` フォルダーは次の手順で更新します。
+3. リポジトリのトップに `build.py`、`youtube_api.py`、`config.json`、`README.md`、`.gitignore`、`tests/`、`tools/`、`assets/`、`WIKIWIKI-snippet.txt` をアップロードまたは置き換えます。既に独自に追加したチャンネル設定がある場合は、`config.json`を上書きする前に `channels` の項目を新しい設定へ移してください。`exclude_keywords` が無い場合は標準値 `MVCI 闘魂部` を使います。隠し `.github` フォルダーは次の手順で更新します。
 4. `.github/workflows/deploy.yml` が既にある場合は **Edit file** でこのパッケージの同パスにある内容へ置き換えます。まだ無ければ **Add file → Create new file** を選び、ファイル名に `.github/workflows/deploy.yml` を入力して内容を貼り付けます。
 5. 初回は `Actions → Update and deploy MVCI feed → Run workflow` で手動実行します。以降は `main` への変更時と15分ごとに実行されます。Actionsの実行時刻やYouTube側の反映時刻には遅れがあるため、即時反映は保証されません。
 
@@ -37,7 +37,7 @@ Google OAuth同意画面が **Testing** の外部アプリでは、プロフィ�
 
 ## 更新頻度とクォータ
 
-workflowは15分間隔です。1回ごとに最新動画状態を確認し、チャンネルRSSまたはAPI fallbackから取得した候補のうち、除外タイトルを取り除いた最新1本だけをプレイリストへ同期します。既に登録されていれば先頭へ移し、それ以外の候補動画を追加することはありません。登録済み動画の削除も行いません。過去動画全体を検索することはなく、各チャンネルRSSやAPI fallbackの最近の動画だけが対象です。
+workflowは15分間隔です。1回ごとに全体で最も新しい動画の状態を確認し、プレイリストには各有効チャンネルの最新対象動画を1本ずつ同期します。全体の選択動画を先に追加し、先頭に置きます。追加上限 `max_playlist_additions_per_run` は1回に追加できる動画の最大数です。対象チャンネル数より小さい場合、他チャンネルの動画は後続実行に回ることがあります。既に登録された動画は重複追加せず、削除もしません。同一チャンネルの古い候補は追加しません。過去動画全体を検索することはなく、各チャンネルRSSやAPI fallbackの最近の動画だけが対象です。
 
 YouTube Data APIの標準割当は通常その他のAPI操作で1日10,000ユニットで、プレイリストへの1件挿入は50ユニットです。新規動画の追加が集中すると割当を消費するため、追加上限を `config.json` の `max_playlist_additions_per_run` で調整してください。API割当の変更があればGoogle Cloud Consoleと[公式クォータ資料](https://developers.google.com/youtube/v3/determine_quota_cost)で確認してください。[playlistItems.insertの仕様と手動順序の要件](https://developers.google.com/youtube/v3/docs/playlistItems/insert)
 

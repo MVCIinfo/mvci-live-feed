@@ -69,7 +69,8 @@ class RSSFallbackTests(unittest.TestCase):
             self.assertIn(("fallback", "UCfallback", 15), api.calls)
             self.assertIn(("live", "bbbbbbbbbbb"), api.calls)
             self.assertIn(("insert", "bbbbbbbbbbb"), api.calls)
-            self.assertEqual(api.items, ["bbbbbbbbbbb"])
+            self.assertIn(("insert", "aaaaaaaaaaa"), api.calls)
+            self.assertEqual(api.items, ["bbbbbbbbbbb", "aaaaaaaaaaa"])
 
     def test_all_rss_and_api_failures_preserve_previous_output_and_report_sanitely(self):
         class API:

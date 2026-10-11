@@ -1,0 +1,7 @@
+Wiki見出しは「配信情報」などの固定・汎用表記にしてください。ページの固定見出しはGitHub Actionsから更新されません。次のバッジ、RSS、プレイヤーの順に既存のプレイヤー部分を置き換えてください。
+
+#ref(https://MVCIinfo.github.io/mvci-live-feed/live-status.png,nolink)
+#showrss2(https://MVCIinfo.github.io/mvci-live-feed/feed.xml,default,1)
+#embed(https://www.youtube.com/playlist?list=PLIA2oKVHJxPs)
+
+バッジは全チャンネルで選ばれた最新1本の状態だけを反映し、その動画をYouTube APIで配信中と確認できた時だけ表示します。他のチャンネルの動画が配信中でも表示しません。RSSタイトルには「配信中！」、「直近のMVCI配信」、または「配信状態を確認できません」が付きます。showrss2の第3引数1は表示件数です。キャッシュ時間を指定する第4引数を省略しています。プレイヤーはチャンネルごとの最新対象動画を同期するMVCIプレイリストを表示します。GitHub PagesやWiki側の画像キャッシュによってバッジ更新が遅れることがあります。
