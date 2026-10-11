@@ -3,13 +3,35 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 API_BASE = "https://www.googleapis.com/youtube/v3"
 SCOPES = ("https://www.googleapis.com/auth/youtube", "https://www.googleapis.com/auth/youtube.force-ssl")
+YOUTUBE_API_ERROR_REASONS = {
+    "channelNotFound": "channel was not found",
+    "channelForbidden": "channel does not support this request or is not accessible",
+    "manualSortRequired": "manual sort is required for position changes",
+    "invalidPlaylistItemPosition": "invalid playlist item position",
+    "invalidResourceType": "invalid resource type",
+    "invalidContentDetails": "invalid content details",
+    "playlistOperationUnsupported": "playlist operation is unsupported",
+    "videoAlreadyInAnotherSeriesPlaylist": "video is already in another series playlist",
+    "playlistIdRequired": "playlist ID is required",
+    "resourceIdRequired": "resource ID is required",
+    "channelIdRequired": "channel ID is required",
+    "playlistItemsNotAccessible": "playlist items are not accessible to this account",
+    "forbidden": "the account is not allowed to perform this operation",
+    "insufficientPermissions": "the granted OAuth permissions are insufficient",
+    "quotaExceeded": "YouTube API quota has been exceeded",
+    "playlistNotFound": "playlist was not found or is not accessible",
+    "videoNotFound": "video was not found or is not accessible",
+    "accessNotConfigured": "YouTube Data API is not enabled for this project",
+}
 
 
 def credentials_available(env=os.environ) -> bool:
@@ -27,14 +49,40 @@ class YouTubeAPI:
         self._token = None
 
     def _json_request(self, request):
+        api_error = None
         try:
             with self.opener(request, timeout=25) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            # Never include response bodies, URLs, or request headers in logs/errors.
-            raise RuntimeError(f"YouTube API returned HTTP {exc.code}") from None
+            # Only a whitelisted machine reason and status are safe to surface.
+            body = b""
+            try:
+                body = exc.read()
+            except OSError:
+                pass
+            api_error = self._youtube_api_error_message(exc.code, body)
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             raise RuntimeError(f"YouTube API request failed ({type(exc).__name__})") from None
+        if api_error:
+            # Raise after leaving the except block so the HTTPError is not retained as context.
+            raise RuntimeError(api_error)
+
+    @staticmethod
+    def _youtube_api_error_message(status: int, body: bytes) -> str:
+        """Expose only allowlisted YouTube API reason codes; discard all body text."""
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            error = payload.get("error", {}) if isinstance(payload, dict) else {}
+            entries = error.get("errors", []) if isinstance(error, dict) else []
+            reasons = [entry.get("reason") for entry in entries if isinstance(entry, dict)] if isinstance(entries, list) else []
+            reason = next((value for value in reasons if isinstance(value, str) and value in YOUTUBE_API_ERROR_REASONS), None)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            reason = None
+        if reason == "manualSortRequired":
+            return f"YouTube API HTTP {status} (manualSortRequired): プレイリストの並べ替えを「手動」に設定してください。"
+        if reason:
+            return f"YouTube API HTTP {status} ({reason}): {YOUTUBE_API_ERROR_REASONS[reason]}"
+        return f"YouTube API returned HTTP {status}; error details were withheld."
 
     def access_token(self) -> str:
         if self._token:
@@ -120,6 +168,46 @@ class YouTubeAPI:
             return None
         except RuntimeError:
             return None
+
+    def recent_channel_videos(self, channel: dict, max_results: int = 15) -> list[dict]:
+        """Read a channel's most recent uploads through its API-provided uploads playlist."""
+        result = self.call("GET", "/channels", {"part": "contentDetails", "id": channel["id"]})
+        items = result.get("items") or []
+        if not items:
+            raise RuntimeError("API_CHANNEL_NOT_FOUND")
+        content = items[0].get("contentDetails") or {}
+        uploads_id = (content.get("relatedPlaylists") or {}).get("uploads")
+        if not uploads_id:
+            raise RuntimeError("API_UPLOADS_PLAYLIST_UNAVAILABLE")
+        limit = min(50, max(1, int(max_results)))
+        page = self.call("GET", "/playlistItems", {
+            "part": "snippet,contentDetails", "playlistId": uploads_id,
+            "maxResults": limit,
+        })
+        videos = []
+        for item in (page.get("items") or [])[:limit]:
+            snippet = item.get("snippet") or {}
+            details = item.get("contentDetails") or {}
+            video_id = details.get("videoId")
+            title = (snippet.get("title") or "").strip()
+            published = details.get("videoPublishedAt") or snippet.get("publishedAt") or ""
+            if not isinstance(video_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id) or not title:
+                continue
+            try:
+                published_at = datetime.fromisoformat(published.replace("Z", "+00:00"))
+                if published_at.tzinfo is None:
+                    published_at = published_at.replace(tzinfo=timezone.utc)
+            except (AttributeError, ValueError):
+                continue
+            videos.append({
+                "video_id": video_id,
+                "title": title,
+                "published": published_at.astimezone(timezone.utc),
+                "channel": channel["name"],
+                "channel_id": channel["id"],
+                "url": "https://www.youtube.com/watch?v=" + video_id,
+            })
+        return videos
 
     def playlist_video_ids(self, playlist_id: str) -> tuple[list[str], dict[str, dict]]:
         ids, rows, token = [], {}, None

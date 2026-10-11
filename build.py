@@ -6,6 +6,8 @@ import html
 import json
 import os
 import re
+import sys
+import time
 import tempfile
 import urllib.error
 import urllib.request
@@ -13,17 +15,31 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from email.utils import format_datetime
 from pathlib import Path
-from youtube_api import YouTubeAPI, credentials_available, credentials_present, sync_playlist
+from youtube_api import YouTubeAPI, credentials_available, credentials_present, sync_playlist, YOUTUBE_API_ERROR_REASONS
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "site"
 ATOM = "http://www.w3.org/2005/Atom"
 YT = "http://www.youtube.com/xml/schemas/2015"
 NS = {"a": ATOM, "yt": YT}
+TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
+RETRY_DELAYS = (1, 3)
+
+
+class ChannelFetchError(RuntimeError):
+    def __init__(self, category: str):
+        self.category = category
+        super().__init__(category)
+
+
+class AllChannelsUnavailable(RuntimeError):
+    pass
 
 
 def parse_feed(data: bytes, channel: dict) -> list[dict]:
     root = ET.fromstring(data)
+    if root.tag != f"{{{ATOM}}}feed":
+        raise ET.ParseError("unexpected RSS root element")
     videos = []
     for entry in root.findall("a:entry", NS):
         title = entry.findtext("a:title", default="", namespaces=NS).strip()
@@ -43,17 +59,57 @@ def parse_feed(data: bytes, channel: dict) -> list[dict]:
     return videos
 
 
-def fetch_channel(channel: dict, opener=urllib.request.urlopen) -> list[dict]:
+def fetch_channel(channel: dict, opener=urllib.request.urlopen, sleeper=time.sleep) -> list[dict]:
     url = "https://www.youtube.com/feeds/videos.xml?channel_id=" + channel["id"]
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; MVCILiveFeed/1.0)"})
-    last_error = None
     for attempt in range(3):
         try:
             with opener(req, timeout=20) as response:
                 return parse_feed(response.read(), channel)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            last_error = exc
-    raise last_error
+        except urllib.error.HTTPError as exc:
+            if exc.code in TRANSIENT_HTTP_STATUSES and attempt < 2:
+                sleeper(RETRY_DELAYS[attempt])
+                continue
+            raise ChannelFetchError(f"HTTP_{exc.code}") from None
+        except ET.ParseError:
+            raise ChannelFetchError("XML_PARSE_ERROR") from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if attempt < 2:
+                sleeper(RETRY_DELAYS[attempt])
+                continue
+            raise ChannelFetchError("NETWORK_ERROR") from None
+    raise ChannelFetchError("NETWORK_ERROR")
+
+
+def rss_error_category(exc: Exception) -> str:
+    if isinstance(exc, ChannelFetchError):
+        return exc.category
+    if isinstance(exc, ET.ParseError):
+        return "XML_PARSE_ERROR"
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"HTTP_{exc.code}"
+    if isinstance(exc, (urllib.error.URLError, TimeoutError, OSError)):
+        return "NETWORK_ERROR"
+    return "RSS_FETCH_ERROR"
+
+
+def api_error_category(exc: Exception) -> str:
+    # Extract only a numeric HTTP status or an explicitly allowlisted reason.
+    message = str(exc)
+    match = re.search(r"YouTube API HTTP (\d+) \(([A-Za-z0-9]+)\)", message)
+    if match and match.group(2) in YOUTUBE_API_ERROR_REASONS:
+        return f"API_HTTP_{match.group(1)}_{match.group(2)}"
+    match = re.search(r"YouTube API returned HTTP (\d+)", message)
+    if match:
+        return f"API_HTTP_{match.group(1)}"
+    match = re.search(r"OAuth refresh failed: (invalid_grant|invalid_client|unauthorized_client|access_denied|invalid_request)", message)
+    if match:
+        return "OAUTH_" + match.group(1)
+    if message == "API_CHANNEL_NOT_FOUND":
+        return "API_CHANNEL_NOT_FOUND"
+    if message == "API_UPLOADS_PLAYLIST_UNAVAILABLE":
+        return "API_UPLOADS_PLAYLIST_UNAVAILABLE"
+    return "API_FALLBACK_ERROR"
 
 
 def live_label(live_state: bool | None) -> str:
@@ -67,9 +123,9 @@ def live_label(live_state: bool | None) -> str:
 def generate_html(video: dict | None, warnings: list[str], config: dict, live_state: bool | None = None, generated: datetime | None = None, playlist_configured: bool = False) -> str:
     title = html.escape(config.get("title", "MVCI 最新動画"))
     enabled = "、".join(html.escape(c["name"]) for c in config.get("channels", []) if c.get("enabled") and c.get("id"))
-    notice = "RSSを確認しました。MVCI関連タイトルの最新動画を表示しています。" if video else "現在、MVCI関連タイトルの動画は見つかりませんでした。"
+    notice = "YouTube情報を確認しました。MVCI関連タイトルの最新動画を表示しています。" if video else "現在、MVCI関連タイトルの動画は見つかりませんでした。"
     if warnings:
-        notice += " 一部チャンネルの取得に失敗しています。"
+        notice += " 取得経路の変更または取得できないチャンネルがあります。"
     if not playlist_configured:
         notice += " YouTube連携未設定のため、ライブ確認とプレイリスト同期は無効です。"
     if video:
@@ -120,24 +176,44 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
     config = json.loads(config_path.read_text(encoding="utf-8"))
     channels = [c for c in config.get("channels", []) if c.get("enabled") and c.get("id")]
     videos, warnings = [], []
+    sources, failed_channels = [], []
     if not channels:
         raise RuntimeError("有効なチャンネルIDがありません。config.jsonを確認してください。")
+    if credentials_present(env) and not credentials_available(env):
+        raise RuntimeError("YouTube OAuth credentials are incomplete; provide all three GitHub secrets")
+    api = api_factory(env=env) if credentials_available(env) else None
     for c in channels:
         try:
-            videos.extend(fetcher(c))
-        except Exception as exc:  # partial failures are expected for public feeds
-            warnings.append(f"{c['name']}: {type(exc).__name__}")
-    if not videos and len(warnings) == len(channels):
-        raise RuntimeError("すべてのチャンネル取得に失敗したため、既存の出力を保持します。")
+            channel_videos = fetcher(c)
+            videos.extend(channel_videos)
+            sources.append({"name": c["name"], "channel_id": c["id"], "source": "youtube_channel_rss", "status": "ok", "video_count": len(channel_videos)})
+        except Exception as rss_exc:
+            rss_category = rss_error_category(rss_exc)
+            if api is None:
+                api_category = "API_FALLBACK_SKIPPED_NO_CREDENTIALS"
+                failed_channels.append((c, rss_category, api_category))
+                warnings.append(f"{c['name']} ({c['id']}): RSS {rss_category}; API fallback skipped (OAuth not configured)")
+                sources.append({"name": c["name"], "channel_id": c["id"], "source": "none", "status": "failed", "rss_error": rss_category, "api_fallback": api_category})
+                continue
+            try:
+                fallback_videos = api.recent_channel_videos(c, max_results=15)
+                videos.extend(fallback_videos)
+                warnings.append(f"{c['name']} ({c['id']}): RSS {rss_category}; YouTube API uploads fallback used")
+                sources.append({"name": c["name"], "channel_id": c["id"], "source": "youtube_api_uploads", "status": "ok", "rss_error": rss_category, "video_count": len(fallback_videos)})
+            except Exception as api_exc:
+                api_category = api_error_category(api_exc)
+                failed_channels.append((c, rss_category, api_category))
+                warnings.append(f"{c['name']} ({c['id']}): RSS {rss_category}; API fallback {api_category}")
+                sources.append({"name": c["name"], "channel_id": c["id"], "source": "none", "status": "failed", "rss_error": rss_category, "api_fallback": api_category})
+    if failed_channels and len(failed_channels) == len(channels):
+        lines = [f"{str(c['name']).replace(chr(10), ' ').replace(chr(13), ' ')} ({c['id']}): RSS {rss}; API fallback {api_error}" for c, rss, api_error in failed_channels]
+        raise AllChannelsUnavailable("All channel video sources failed; previous output was preserved.\n" + "\n".join(lines))
     keywords = [k.casefold() for k in config.get("keywords", [config.get("keyword", "MVCI")])]
     matches = [v for v in videos if any(k in v["title"].casefold() for k in keywords)]
     latest = max(matches, key=lambda v: v["published"]) if matches else None
     state = None
     playlist_result = {"status": "credentials_missing", "added": []}
-    if credentials_present(env) and not credentials_available(env):
-        raise RuntimeError("YouTube OAuth credentials are incomplete; provide all three GitHub secrets")
-    if credentials_available(env):
-        api = api_factory(env=env)
+    if api is not None:
         if latest:
             state = api.live_state(latest["video_id"])
         # Playlist writes are attempted before files are replaced. Any failure blocks publishing.
@@ -148,7 +224,7 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
         else:
             playlist_result = {"status": "no_candidates", "added": []}
     now = datetime.now(timezone.utc)
-    payload = {"generated_at": now.isoformat().replace("+00:00", "Z"), "status": "latest_match" if latest else "no_match", "live": state, "live_label": live_label(state), "playlist": playlist_result, "warnings": warnings,
+    payload = {"generated_at": now.isoformat().replace("+00:00", "Z"), "status": "latest_match" if latest else "no_match", "live": state, "live_label": live_label(state), "playlist": playlist_result, "warnings": warnings, "sources": sources,
                "video": ({"title": latest["title"], "video_id": latest["video_id"], "url": latest["url"], "channel": latest["channel"], "published": latest["published"].isoformat().replace("+00:00", "Z")} if latest else None)}
     output_dir.mkdir(parents=True, exist_ok=True)
     write_atomic(output_dir / "index.html", generate_html(latest, warnings, config, state, now, credentials_available(env)).encode("utf-8"))
@@ -158,5 +234,9 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
 
 
 if __name__ == "__main__":
-    result = build()
+    try:
+        result = build()
+    except AllChannelsUnavailable as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1)
     print(f"{result['status']}: {result['video']['title'] if result['video'] else '該当なし'}")
