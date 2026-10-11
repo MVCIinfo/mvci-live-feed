@@ -3,7 +3,7 @@
   "site_url": "https://MVCIinfo.github.io/mvci-live-feed/",
   "playlist_id": "PLIA2oKVHJxPs",
   "max_playlist_additions_per_run": 10,
-  "keywords": ["MVCI", "MVC:I", "マーベルVSカプコンインフィニット"],
+  "keywords": ["MVCI", "mvci", "MVC:I", "マーベルVSカプコンインフィニット"],
   "exclude_keywords": ["闘魂", "tokon"],
   "channels": [
     {"name": "Ororo n", "id": "UCbZogYHnnzt7JxHoO8TDvpg", "enabled": true},
@@ -19,6 +19,6 @@
     {"name": "pittofaia (@pittofaia)", "id": "UCrE0fNuuqYFmNmuZeH86h0Q", "enabled": true},
     {"name": "bossvaraha", "id": "UCDfpe0NrOfyVAdf3FGEap0A", "enabled": true},
     {"name": "ルパン-mvci", "id": "UCmmSfXlhOVr1jl_QmcmN6bg", "enabled": true},
-    {"name": "ICUHATER", "id": "UCNdeErHWqDlS3F8xSS1y45w", "enabled": false},
+    {"name": "ICUHATER", "id": "UCNdeErHWqDlS3F8xSS1y45w", "enabled": false}
   ]
 }
