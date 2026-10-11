@@ -24,6 +24,7 @@ YT = "http://www.youtube.com/xml/schemas/2015"
 NS = {"a": ATOM, "yt": YT}
 TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
 RETRY_DELAYS = (1, 3)
+DEFAULT_EXCLUDE_KEYWORDS = ["MVCI 闘魂部"]
 
 
 class ChannelFetchError(RuntimeError):
@@ -110,6 +111,16 @@ def api_error_category(exc: Exception) -> str:
     if message == "API_UPLOADS_PLAYLIST_UNAVAILABLE":
         return "API_UPLOADS_PLAYLIST_UNAVAILABLE"
     return "API_FALLBACK_ERROR"
+
+
+def normalize_title_for_exclusion(title: str) -> str:
+    """Ignore all whitespace variants when checking excluded title phrases."""
+    return re.sub(r"\s+", "", title).casefold()
+
+
+def is_excluded_title(title: str, exclude_keywords: list[str]) -> bool:
+    normalized = normalize_title_for_exclusion(title)
+    return any(normalize_title_for_exclusion(keyword) in normalized for keyword in exclude_keywords if keyword.strip())
 
 
 def live_label(live_state: bool | None) -> str:
@@ -210,6 +221,8 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
         raise AllChannelsUnavailable("All channel video sources failed; previous output was preserved.\n" + "\n".join(lines))
     keywords = [k.casefold() for k in config.get("keywords", [config.get("keyword", "MVCI")])]
     matches = [v for v in videos if any(k in v["title"].casefold() for k in keywords)]
+    exclude_keywords = config.get("exclude_keywords", DEFAULT_EXCLUDE_KEYWORDS)
+    matches = [v for v in matches if not is_excluded_title(v["title"], exclude_keywords)]
     latest = max(matches, key=lambda v: v["published"]) if matches else None
     state = None
     playlist_result = {"status": "credentials_missing", "added": []}
@@ -219,7 +232,7 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
         # Playlist writes are attempted before files are replaced. Any failure blocks publishing.
         if matches:
             playlist_result = {"status": "synced", **sync_playlist(
-                api, config.get("playlist_id", "PLIA2oKVHJxPs"), matches,
+                api, config.get("playlist_id", "PLIA2oKVHJxPs"), [latest],
                 latest["video_id"] if latest else None, int(config.get("max_playlist_additions_per_run", 10)))}
         else:
             playlist_result = {"status": "no_candidates", "added": []}
