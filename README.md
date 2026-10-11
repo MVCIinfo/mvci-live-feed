@@ -53,3 +53,8 @@ python build.py
 ```
 
 OAuth設定をしないローカル実行ではAPI連携を行いません。実際の認証やYouTubeプレイリスト編集はこのパッケージ作成時には実行していません。
+
+## 保守・更新手順
+
+チャンネル設定、除外語、GitHub Actions、YouTube連携、Wiki表示の更新方法は[保守・更新手順](OPERATIONS.md)を参照してください。
+
