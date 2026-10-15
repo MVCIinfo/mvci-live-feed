@@ -182,6 +182,24 @@ def rss_feed(video: dict | None, config: dict, generated: datetime, live_state: 
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
+def live_status_feed(video: dict | None, config: dict, generated: datetime, live_state: bool | None) -> bytes:
+    """Create a one-item RSS only while the selected video is explicitly confirmed live."""
+    root = ET.Element("rss", version="2.0")
+    channel = ET.SubElement(root, "channel")
+    ET.SubElement(channel, "title").text = config.get("title", "MVCI") + " 配信中のみ"
+    ET.SubElement(channel, "link").text = config.get("site_url", "https://MVCIinfo.github.io/mvci-live-feed/")
+    ET.SubElement(channel, "description").text = "全体で選択された最新動画をYouTube Data APIで配信中と確認できた場合だけ項目を表示します。項目がない場合は現在配信中と確認できる対象動画がありません。"
+    ET.SubElement(channel, "lastBuildDate").text = format_datetime(generated)
+    if video is not None and live_state is True:
+        item = ET.SubElement(channel, "item")
+        ET.SubElement(item, "title").text = "🔴 配信中！"
+        ET.SubElement(item, "link").text = video["url"]
+        ET.SubElement(item, "guid", isPermaLink="true").text = video["url"]
+        ET.SubElement(item, "pubDate").text = format_datetime(generated)
+        ET.SubElement(item, "description").text = f"配信中と確認された選択動画: {video['title']} — {video['channel']}"
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
 def write_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
@@ -255,6 +273,7 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
     output_dir.mkdir(parents=True, exist_ok=True)
     write_atomic(output_dir / "index.html", generate_html(latest, warnings, config, state, now, credentials_available(env)).encode("utf-8"))
     write_atomic(output_dir / "feed.xml", rss_feed(latest, config, now, state))
+    write_atomic(output_dir / "live-status.xml", live_status_feed(latest, config, now, state))
     write_atomic(output_dir / "latest.json", (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     badge_path = BADGE_LIVE if latest and state is True else BADGE_BLANK
     write_atomic(output_dir / "live-status.png", badge_path.read_bytes())
