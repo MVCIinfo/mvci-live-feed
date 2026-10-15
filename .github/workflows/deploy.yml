@@ -33,6 +33,8 @@ jobs:
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: python build.py
+      - name: Copy OAuth information pages
+        run: cp -R public/. site/
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
