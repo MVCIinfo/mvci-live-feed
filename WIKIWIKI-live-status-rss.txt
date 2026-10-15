@@ -1,0 +1,7 @@
+既存のライブ状態バッジ画像の #ref 行だけを、次の3行へ置き換えてください。通常のRSS表示とプレイリスト埋め込みはそのまま残します。
+
+#size(32){{
+#showrss2(https://mvciinfo.github.io/mvci-live-feed/live-status.xml,menubar,1)
+}}
+
+この状態RSSは全体で選択された最新動画だけを確認します。YouTube APIで配信中と確認できた場合は「🔴 配信中！」の1件を出し、それ以外は0件です。Wikiが0件フィードをどう表示するかは公開後に確認してください。テスト用フィードURLはまだGitHub Pagesへ公開されていないため、build.pyのアップロードとActions実行が成功するまでは使えません。
