@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MVCI配信自動更新 は、YouTube チャンネルの公開配信情報を見やすくまとめるサービスです。">
+  <title>MVCI配信自動更新 — YouTube 公開配信情報</title>
+  <style>
+    :root{color-scheme:light;--ink:#172b3a;--muted:#526779;--blue:#1769aa;--line:#d9e3eb;--paper:#fff;--wash:#f1f6fa;--mint:#d8f0e8}
+    *{box-sizing:border-box}body{margin:0;background:var(--wash);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.75}
+    a{color:var(--blue);text-underline-offset:.2em}a:focus-visible{outline:3px solid #f1a93b;outline-offset:3px}.wrap{max-width:960px;margin:auto;padding:28px 22px 64px}
+    header{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:10px 0 22px;border-bottom:1px solid var(--line)}.brand{font-weight:750;letter-spacing:.02em}.nav{display:flex;gap:20px;flex-wrap:wrap;font-size:.93rem}
+    main{padding-top:54px}.eyebrow{color:#28705d;font-size:.78rem;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.hero{max-width:760px}.hero h1{font-size:clamp(2.3rem,7vw,4.5rem);line-height:1.12;letter-spacing:-.045em;margin:.45rem 0 1.2rem}.lead{font-size:1.18rem;color:var(--muted);max-width:680px}
+    .actions{display:flex;gap:12px;flex-wrap:wrap;margin:28px 0 48px}.button{display:inline-block;padding:11px 18px;border-radius:8px;background:var(--blue);color:white;text-decoration:none;font-weight:700}.button.secondary{background:white;color:var(--ink);border:1px solid var(--line)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px}.card h2{font-size:1.15rem;margin:0 0 8px}.card p{color:var(--muted);margin:0}.notice{margin-top:20px;background:var(--mint);border-radius:12px;padding:16px 20px;color:#23483f}
+    footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+    @media(max-width:640px){.wrap{padding:18px 16px 42px}header{align-items:flex-start;flex-direction:column}.nav{gap:14px}main{padding-top:38px}.grid{grid-template-columns:1fr}.actions{margin-bottom:32px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="./" style="color:inherit;text-decoration:none">MVCI配信自動更新</a>
+      <nav class="nav" aria-label="サイト内ナビゲーション"><a href="https://mvciinfo.github.io/mvci-live-feed/">配信一覧</a><a href="./privacy.html">プライバシーポリシー</a></nav>
+    </header>
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div class="eyebrow">Public YouTube updates</div>
+        <h1 id="page-title">配信の更新を、<br>ひとつのフィードに。</h1>
+        <p class="lead">MVCI配信自動更新 は、対象チャンネルの公開動画やライブ配信の情報をまとめ、一覧と RSS・JSON フィードで提供する小さな情報サービスです。</p>
+        <div class="actions"><a class="button" href="https://mvciinfo.github.io/mvci-live-feed/">公開中の配信一覧を見る</a><a class="button secondary" href="./privacy.html">プライバシーについて</a></div>
+      </section>
+      <section class="grid" aria-label="サービスの概要">
+        <article class="card"><h2>公開情報を見やすく整理</h2><p>動画タイトル、公開日、ライブ配信の状態など、YouTube で公開されている情報を掲載します。動画は YouTube の埋め込みプレーヤーで再生できます。</p></article>
+        <article class="card"><h2>フィードで受け取る</h2><p>ウェブページに加えて、更新情報を RSS・JSON 形式で公開します。サービスの利用に Google アカウントでのログインは必要ありません。</p></article>
+        <article class="card"><h2>運営者のプレイリストを管理</h2><p>運営者は Google OAuth を使い、指定したプレイリストへの動画追加や並び順の更新を行います。この管理機能は運営者向けで、閲覧者のログインは不要です。</p></article>
+      </section>
+      <p class="notice">運営者は MVCIinfo です。お問い合わせや情報の削除に関するご連絡は、<a href="https://github.com/MVCIinfo/mvci-live-feed/issues">GitHub の Issues</a>からお送りください。個人情報や認証情報を Issue に書き込まないでください。</p>
+    </main>
+    <footer>© MVCIinfo · <a href="./privacy.html">プライバシーポリシー</a> · 本サービスは YouTube API サービスを利用します。YouTube の利用には <a href="https://www.youtube.com/t/terms">YouTube 利用規約</a>が適用されます。</footer>
+  </div>
+</body>
+</html>
