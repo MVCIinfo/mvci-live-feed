@@ -1,0 +1,6 @@
+{
+  "name": "mvci-live-feed-cloudflare-trigger",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" }
+}
