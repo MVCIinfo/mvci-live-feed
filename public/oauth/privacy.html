@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MVCI配信自動更新 のプライバシーポリシー。">
+  <title>プライバシーポリシー — MVCI配信自動更新</title>
+  <style>
+    :root{color-scheme:light;--ink:#172b3a;--muted:#526779;--blue:#1769aa;--line:#d9e3eb;--paper:#fff;--wash:#f1f6fa;--amber:#fff0c7}
+    *{box-sizing:border-box}body{margin:0;background:var(--wash);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.8}a{color:var(--blue);text-underline-offset:.2em}a:focus-visible{outline:3px solid #f1a93b;outline-offset:3px}
+    .wrap{max-width:850px;margin:auto;padding:28px 22px 60px}header{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:10px 0 22px;border-bottom:1px solid var(--line)}.brand{font-weight:750;color:var(--ink);text-decoration:none}.nav{display:flex;gap:18px;flex-wrap:wrap;font-size:.93rem}
+    main{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(22px,5vw,48px);margin-top:32px}h1{font-size:clamp(1.9rem,5vw,2.7rem);line-height:1.25;margin:.3rem 0 .6rem;letter-spacing:-.025em}.date{color:var(--muted);margin:0 0 24px}.draft{border-left:4px solid #d59000;background:var(--amber);padding:13px 16px;border-radius:6px;font-weight:700;margin:22px 0}h2{font-size:1.2rem;margin:30px 0 8px}p{margin:8px 0 14px}ul{padding-left:1.4rem}li{margin:.4rem 0}.small{color:var(--muted);font-size:.93rem}footer{padding-top:22px;color:var(--muted);font-size:.9rem}
+    @media(max-width:640px){.wrap{padding:18px 14px 42px}header{align-items:flex-start;flex-direction:column}main{margin-top:20px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><a class="brand" href="./">MVCI配信自動更新</a><nav class="nav" aria-label="サイト内ナビゲーション"><a href="./">サービス概要</a><a href="https://mvciinfo.github.io/mvci-live-feed/">配信一覧</a></nav></header>
+    <main>
+      <h1>プライバシーポリシー</h1>
+      <p class="date">最終更新日：2026年10月16日（日本時間）</p>
+      <p class="draft">運営者確認用ドラフト — 公開前に内容を確認し、記載した方針を実際の運用として採用する場合にのみ、この表示を削除してください。</p>
+
+      <p>MVCIinfo（以下「運営者」）は、MVCI配信自動更新（以下「本サービス」）における情報の取扱いについて、以下のとおり定めます。本サービスは、YouTube API サービスを利用します。</p>
+
+      <h2>1. 本サービスが扱う情報</h2>
+      <p>本サービスは、対象となる YouTube チャンネルの公開情報（動画 ID、タイトル、公開日、ライブ配信の状態など）を取得し、公開ページ、RSS、JSON フィードに表示します。動画の再生には YouTube の埋め込みプレーヤーを使用します。</p>
+      <p>本サービスを閲覧する方に Google ログインを求めず、閲覧者の Google OAuth 認証情報を取得しません。YouTube 埋め込みやウェブサイトのホスティングにより、利用者の IP アドレスなどが YouTube やホスティング事業者に送信される場合があります。各事業者の取扱いは、それぞれのプライバシー情報をご確認ください。</p>
+
+      <h2>2. Google OAuth と利用目的</h2>
+      <p>運営者は、運営者自身のプレイリストを管理する機能のために Google OAuth を使用します。要求する <code>youtube.force-ssl</code> 権限は YouTube アカウントのデータを広く読み取り・管理できる権限です。本サービスでは公開メタデータの取得に加え、運営者のプレイリストを読み取り、動画を追加し、並び順を更新します。対象プレイリストは <code>PLIA2oKVHJxPs</code> です。閲覧者は Google アカウントでログインする必要はありません。</p>
+      <p>OAuth データは上記機能の実行にのみ使用します。第三者への販売、広告目的での利用、AI モデルの学習への利用は行いません。</p>
+
+      <h2>3. 保存と公開</h2>
+      <p>取得した公開メタデータは、ビルド時に公開フィードやページへ出力され、次回の更新で置き換えられます。運営者は OAuth の更新用認証情報をローカルの JSON ファイルで管理し、GitHub リポジトリの Secrets に登録して GitHub Actions から利用します。アクセストークンは実行中のメモリ上で扱います。認証情報を公開ページや公開リポジトリに掲載することは意図していません。</p>
+      <p>GitHub Actions はフィードの生成と GitHub Pages への公開に使います。ジョブログやアーティファクトの保存期間・バックアップは GitHub の設定とサービス仕様に従います。Cloudflare Worker は、導入されている場合にチャンネル設定や公開メタデータ、WebSub 通知、GitHub Actions 起動用トークンを扱う構成として想定されていますが、Google OAuth 認証情報は扱いません。本ポリシーは Worker の稼働状況を示すものではありません。</p>
+
+      <h2>4. 保存期間と削除</h2>
+      <p>公開メタデータはフィードの更新時に現在の出力へ反映されます。運営者は設定および公開ファイルを編集・削除できますが、GitHub のジョブログ、アーティファクト、バックアップに残る情報は、それぞれの保存設定と保持期間に従います。個別の保存期限を一律には定めていません。</p>
+      <p>Google アカウントの <a href="https://myaccount.google.com/permissions">アカウントへのアクセス権</a>から本サービスへの許可を取り消せます。許可の取消しだけでは、すでに公開されたメタデータは自動削除されません。削除を希望する場合は下記窓口へご連絡ください。確認のため、運営者が必要に応じて本サービスを許可した Google アカウントと同じアカウントからの連絡をお願いすることがあります。パスワード、トークン、秘密情報は送らないでください。</p>
+
+      <h2>5. 第三者サービスと関連規約</h2>
+      <ul>
+        <li>YouTube の API および埋め込み機能を利用します。<a href="https://www.youtube.com/t/terms">YouTube 利用規約</a>と <a href="https://policies.google.com/privacy">Google プライバシーポリシー</a>をご確認ください。</li>
+        <li>ページとフィードのホスティング、および自動ビルドに GitHub Pages と GitHub Actions を利用します。<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub プライバシーに関する声明</a>をご確認ください。</li>
+      </ul>
+
+      <h2>6. お問い合わせ</h2>
+      <p>本ポリシーや公開情報の削除に関する連絡先は <a href="https://github.com/MVCIinfo/mvci-live-feed/issues">MVCIinfo/mvci-live-feed の GitHub Issues</a>です。連絡時に、パスワードや OAuth トークンなどの秘密情報を記載しないでください。</p>
+      <p class="small">運営者：MVCIinfo</p>
+    </main>
+    <footer><a href="./">サービス概要へ戻る</a> · <a href="https://mvciinfo.github.io/mvci-live-feed/">公開中の配信一覧</a></footer>
+  </div>
+</body>
+</html>
