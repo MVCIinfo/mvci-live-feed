@@ -1,0 +1,35 @@
+{
+  "name": "mvci-feed-trigger",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-13",
+  "account_id": "77b8924afb287159ee974b47aee8058a",
+  "kv_namespaces": [
+    {
+      "binding": "STATE",
+      "id": "43fa16cbdfb04eff844e0fc920a27523"
+    }
+  ],
+  "vars": {
+    "WORKER_URL": "https://mvci-feed-trigger.mvciinformation.workers.dev"
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "keep_vars": true,
+  "send_metrics": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": false
+    }
+  }
+}
