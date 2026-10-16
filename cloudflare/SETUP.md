@@ -9,6 +9,17 @@
 3. Worker の **Settings → Bindings** で Workers KV binding を追加し、Variable name を `STATE` にして namespace を結び付けます。
 4. **Settings → Triggers → Cron Triggers** に `*/5 * * * *` を登録します。
 
+### Wrangler CLI で既存 Worker を更新
+
+Node.js 22 以降と npm を用意し、このリポジトリを取得して `cloudflare` フォルダーを作業ディレクトリにし、バージョン固定の公式 Wrangler CLI を `npx` で実行します。設定ファイルは既存 Worker の `STATE` namespace を参照するだけで、KV namespace は作成しません。`keep_vars: true` は既存の dashboard variables を保ち、通常の Worker deploy は既存の Secret bindings を削除しません。`observability` 設定も invocation logs、永続化、サンプリング率を明示して既存値を保ちます。
+
+```sh
+npx wrangler@4.151.1 login --device --browser=false --scopes account:read workers_scripts:write
+npx wrangler@4.151.1 --config wrangler.jsonc deploy
+```
+
+localhost callback が接続拒否になる場合やログインが2分程度でタイムアウトする場合は、device login を使います。CLI が表示した URL をそのまま Edge で開き、ユーザー本人が **Continue** と **Authorize** を選びます。CLI 側で認可完了を確認してから deploy を実行してください。認証コードやトークンを共有したり、Worker のソースや設定ファイルに保存したりしないでください。
+
 ## Variables と Secrets
 
 **Settings → Variables and Secrets** に以下を設定します。Worker 独自の JSON ログと `/health` response は Secret 値を返しません。Cloudflare の platform request logs は callback URL path を記録することがあるため、ログのアクセス権と保持期間も確認してください。
