@@ -16,6 +16,21 @@ FIXTURE = b'''<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom" xml
 
 
 class FeedTests(unittest.TestCase):
+    def test_date_uses_stream_start_in_jst_and_labels_fallback_as_publication(self):
+        video = build.parse_feed(FIXTURE, {"name": "Channel", "id": "UCx"})[0]
+        self.assertEqual(build.display_date(video, "2026-10-06T16:30:00Z"), ("配信日", "2026/10/07"))
+        self.assertEqual(build.display_date(video, None), ("公開日", "2026/10/06"))
+        self.assertEqual(build.display_date(video, "not-a-date"), ("公開日", "2026/10/06"))
+        self.assertEqual(build.display_date(video, "2026-10-06T16:30:00"), ("公開日", "2026/10/06"))
+
+    def test_rss_and_html_show_start_date_without_changing_pubdate(self):
+        video = build.parse_feed(FIXTURE, {"name": "Channel", "id": "UCx"})[0]
+        start = "2026-10-06T16:30:00Z"
+        xml = build.ET.fromstring(build.rss_feed(video, {"title": "MVCI"}, datetime(2026, 10, 8, tzinfo=timezone.utc), False, start))
+        self.assertEqual(xml.findtext("channel/item/title"), "直近のMVCI配信｜配信日：2026/10/07｜MVCI & friends <test>")
+        self.assertEqual(xml.findtext("channel/item/pubDate"), "Tue, 06 Oct 2026 12:00:00 +0000")
+        self.assertIn("配信日 2026/10/07", build.generate_html(video, [], {"title": "MVCI"}, actual_start_time=start))
+
     def test_parse_and_html_escape(self):
         ch = {"name": "<host>", "id": "UCx"}
         videos = build.parse_feed(FIXTURE, ch)
@@ -38,7 +53,7 @@ class FeedTests(unittest.TestCase):
             self.assertEqual(len(result["warnings"]), 1)
             parsed = build.ET.parse(Path(d) / "site" / "feed.xml")
             self.assertEqual(parsed.getroot().tag, "rss")
-            self.assertEqual(parsed.findtext("channel/item/title"), "配信状態を確認できません｜MVCI & friends <test>")
+            self.assertEqual(parsed.findtext("channel/item/title"), "配信状態を確認できません｜公開日：2026/10/06｜MVCI & friends <test>")
             self.assertEqual(parsed.findtext("channel/item/pubDate"), "Tue, 06 Oct 2026 12:00:00 +0000")
             obj = json.loads((Path(d) / "site" / "latest.json").read_text(encoding="utf-8"))
             self.assertIsNone(obj["live"])
@@ -93,6 +108,7 @@ class FeedTests(unittest.TestCase):
                 self.checked = None
             def live_state(self, video_id):
                 self.checked = video_id
+                self.actual_start_time = "2026-10-08T00:30:00Z"
                 return False
             def playlist_video_ids(self, playlist_id):
                 rows = {video_id: {"id": "item-" + video_id,
@@ -121,6 +137,11 @@ class FeedTests(unittest.TestCase):
             self.assertEqual(result["video"]["video_id"], "zyxwvutsrqp")
             self.assertIs(result["live"], False)
             self.assertEqual(api.checked, "zyxwvutsrqp")
+            self.assertEqual(result["video"]["display_date_label"], "配信日")
+            self.assertEqual(result["video"]["display_date"], "2026/10/08")
+            payload = json.loads((Path(d) / "site" / "latest.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["video"]["published"], "2026-10-07T12:00:00Z")
+            self.assertEqual(payload["video"]["display_date"], "2026/10/08")
 
 
 if __name__ == "__main__":
