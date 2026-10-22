@@ -31,10 +31,30 @@ class LiveStateTests(unittest.TestCase):
         api.call = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("private"))
         self.assertIsNone(api.live_state("abcdefghijk"))
 
+    def test_start_time_comes_from_existing_single_video_request(self):
+        api = youtube_api.YouTubeAPI(env={})
+        calls = []
+        def call(method, path, params):
+            calls.append((method, path, params))
+            return {"items": [{"snippet": {"liveBroadcastContent": "none"},
+                               "liveStreamingDetails": {"actualStartTime": "2026-10-06T16:30:00Z"}}]}
+        api.call = call
+        self.assertIs(api.live_state("abcdefghijk"), False)
+        self.assertEqual(api.actual_start_time, "2026-10-06T16:30:00Z")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1], "/videos")
+
+    def test_failed_call_clears_previous_start_time(self):
+        api = youtube_api.YouTubeAPI(env={})
+        api.actual_start_time = "stale"
+        api.call = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("private"))
+        self.assertIsNone(api.live_state("abcdefghijk"))
+        self.assertIsNone(api.actual_start_time)
+
     def test_rss_uses_exact_live_offline_and_unknown_prefixes(self):
         video = {"video_id": "abcdefghijk", "title": "MVCI event", "url": "https://www.youtube.com/watch?v=abcdefghijk",
                  "channel": "Channel", "published": datetime(2026, 10, 8, tzinfo=timezone.utc)}
-        expected = {True: "配信中！｜MVCI event", False: "直近のMVCI配信｜MVCI event", None: "配信状態を確認できません｜MVCI event"}
+        expected = {True: "配信中！｜公開日：2026/10/08｜MVCI event", False: "直近のMVCI配信｜公開日：2026/10/08｜MVCI event", None: "配信状態を確認できません｜公開日：2026/10/08｜MVCI event"}
         for state, label in expected.items():
             with self.subTest(state=state):
                 xml = build.rss_feed(video, {"title": "MVCI"}, datetime(2026, 10, 8, tzinfo=timezone.utc), state)
