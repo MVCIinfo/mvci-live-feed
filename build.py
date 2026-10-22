@@ -143,7 +143,21 @@ def live_label(live_state: bool | None) -> str:
     return "配信状態を確認できません"
 
 
-def generate_html(video: dict | None, warnings: list[str], config: dict, live_state: bool | None = None, generated: datetime | None = None, playlist_configured: bool = False) -> str:
+def display_date(video: dict, actual_start_time=None) -> tuple[str, str]:
+    """Return a truthful Japanese date label and its JST calendar date."""
+    jst = timezone(timedelta(hours=9))
+    start = actual_start_time
+    try:
+        if isinstance(start, str):
+            start = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        if isinstance(start, datetime) and start.tzinfo is not None and start.utcoffset() is not None:
+            return "配信日", start.astimezone(jst).strftime("%Y/%m/%d")
+    except (ValueError, OverflowError):
+        pass
+    return "公開日", video["published"].astimezone(jst).strftime("%Y/%m/%d")
+
+
+def generate_html(video: dict | None, warnings: list[str], config: dict, live_state: bool | None = None, generated: datetime | None = None, playlist_configured: bool = False, actual_start_time=None) -> str:
     title = html.escape(config.get("title", "MVCI 最新動画"))
     enabled = "、".join(html.escape(c["name"]) for c in config.get("channels", []) if c.get("enabled") and c.get("id"))
     notice = "YouTube情報を確認しました。MVCI関連タイトルの最新動画を表示しています。" if video else "現在、MVCI関連タイトルの動画は見つかりませんでした。"
@@ -154,7 +168,8 @@ def generate_html(video: dict | None, warnings: list[str], config: dict, live_st
     if video:
         title_text = html.escape(video["title"])
         jst = timezone(timedelta(hours=9))
-        detail = html.escape(video["channel"]) + " ・ 公開日時 " + html.escape(video["published"].astimezone(jst).strftime("%Y-%m-%d %H:%M JST"))
+        date_label, date_value = display_date(video, actual_start_time)
+        detail = html.escape(video["channel"]) + " ・ " + date_label + " " + html.escape(date_value)
         updated = "" if generated is None else " ・ 更新 " + html.escape(generated.astimezone(jst).strftime("%Y-%m-%d %H:%M JST"))
         badge = html.escape(live_label(live_state))
         content = f'<p class="badge">{badge}</p><div class="player"><iframe src="https://www.youtube-nocookie.com/embed/{html.escape(video["video_id"], quote=True)}" title="{title_text}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div><h2>{title_text}</h2><p>{detail}{updated}</p><p><a href="{html.escape(video["url"], quote=True)}">YouTubeで開く</a></p>'
@@ -165,7 +180,7 @@ def generate_html(video: dict | None, warnings: list[str], config: dict, live_st
 :root{{color-scheme:dark;--bg:#10131b;--panel:#1a2030;--text:#f5f7fb;--muted:#aeb8cc;--accent:#70d7bd}}*{{box-sizing:border-box}}body{{margin:0;background:radial-gradient(ellipse at top,#26324a,var(--bg) 60%);color:var(--text);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}}main{{width:min(920px,100%);margin:auto;padding:clamp(20px,5vw,52px)}}header{{margin-bottom:26px}}h1{{font-size:clamp(1.7rem,5vw,2.6rem);margin:0 0 8px}}p{{color:var(--muted)}}.card{{background:var(--panel);border:1px solid #344057;border-radius:18px;padding:clamp(16px,4vw,30px);box-shadow:0 18px 55px #0005}}.badge{{display:inline-block;background:#263e4a;color:#8ff0d3;border-radius:999px;padding:4px 12px;font-weight:700;margin:0 0 14px}}.player{{position:relative;aspect-ratio:16/9;background:#080a10;border-radius:12px;overflow:hidden}}iframe{{position:absolute;width:100%;height:100%;border:0}}h2{{font-size:clamp(1.15rem,4vw,1.7rem);line-height:1.4;margin:22px 0 0}}a{{color:var(--accent)}}.status{{border-left:3px solid var(--accent);padding:2px 14px;margin:0 0 20px}}.empty{{padding:40px 10px;text-align:center}}small,footer{{color:var(--muted)}}details{{margin-top:18px;color:var(--muted)}}footer{{margin-top:24px;font-size:.9rem}}</style></head><body><main><header><h1>{title}</h1><p>登録チャンネルの動画からMVCI関連タイトルの最新の1本を表示します。対象: {enabled or "未設定"}</p></header><section class="card"><p class="status">{html.escape(notice)}</p>{content}{warn_html}</section><footer><p>ページ見出しは「配信情報」です。表示中動画は対象チャンネルから見つかった最新のMVCI関連動画です。RSSの公開日時は配信開始時刻とは限りません。配信状態はYouTube Data APIで確認できた場合のみ「配信中！」と表示します。15分間隔の定期更新は即時反映を保証しません。</p><p><a href="feed.xml">RSSフィード</a> ・ <a href="latest.json">JSON</a></p></footer></main></body></html>'''
 
 
-def rss_feed(video: dict | None, config: dict, generated: datetime, live_state: bool | None = None) -> bytes:
+def rss_feed(video: dict | None, config: dict, generated: datetime, live_state: bool | None = None, actual_start_time=None) -> bytes:
     root = ET.Element("rss", version="2.0")
     channel = ET.SubElement(root, "channel")
     ET.SubElement(channel, "title").text = config.get("title", "MVCI 最新動画")
@@ -174,11 +189,12 @@ def rss_feed(video: dict | None, config: dict, generated: datetime, live_state: 
     ET.SubElement(channel, "lastBuildDate").text = format_datetime(generated)
     if video:
         item = ET.SubElement(channel, "item")
-        ET.SubElement(item, "title").text = f"{live_label(live_state)}｜{video['title']}"
+        date_label, date_value = display_date(video, actual_start_time)
+        ET.SubElement(item, "title").text = f"{live_label(live_state)}｜{date_label}：{date_value}｜{video['title']}"
         ET.SubElement(item, "link").text = video["url"]
         ET.SubElement(item, "guid", isPermaLink="true").text = video["url"]
         ET.SubElement(item, "pubDate").text = format_datetime(video["published"])
-        ET.SubElement(item, "description").text = f"{video['channel']} — YouTube RSSの公開日時です。ライブ開始時刻ではありません。配信状態: {live_label(live_state)}"
+        ET.SubElement(item, "description").text = f"{video['channel']} — {date_label}: {date_value} (JST)。配信状態: {live_label(live_state)}"
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
@@ -268,11 +284,13 @@ def build(config_path: Path = ROOT / "config.json", output_dir: Path = OUT, fetc
         else:
             playlist_result = {"status": "no_candidates", "added": []}
     now = datetime.now(timezone.utc)
+    actual_start_time = getattr(api, "actual_start_time", None) if api is not None and latest else None
+    date_label, date_value = display_date(latest, actual_start_time) if latest else (None, None)
     payload = {"generated_at": now.isoformat().replace("+00:00", "Z"), "status": "latest_match" if latest else "no_match", "live": state, "live_label": live_label(state), "playlist": playlist_result, "warnings": warnings, "sources": sources,
-               "video": ({"title": latest["title"], "video_id": latest["video_id"], "url": latest["url"], "channel": latest["channel"], "published": latest["published"].isoformat().replace("+00:00", "Z")} if latest else None)}
+               "video": ({"title": latest["title"], "video_id": latest["video_id"], "url": latest["url"], "channel": latest["channel"], "published": latest["published"].isoformat().replace("+00:00", "Z"), "display_date_label": date_label, "display_date": date_value} if latest else None)}
     output_dir.mkdir(parents=True, exist_ok=True)
-    write_atomic(output_dir / "index.html", generate_html(latest, warnings, config, state, now, credentials_available(env)).encode("utf-8"))
-    write_atomic(output_dir / "feed.xml", rss_feed(latest, config, now, state))
+    write_atomic(output_dir / "index.html", generate_html(latest, warnings, config, state, now, credentials_available(env), actual_start_time).encode("utf-8"))
+    write_atomic(output_dir / "feed.xml", rss_feed(latest, config, now, state, actual_start_time))
     write_atomic(output_dir / "live-status.xml", live_status_feed(latest, config, now, state))
     write_atomic(output_dir / "latest.json", (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     badge_path = BADGE_LIVE if latest and state is True else BADGE_BLANK
