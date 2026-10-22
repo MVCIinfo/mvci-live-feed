@@ -153,6 +153,9 @@ class YouTubeAPI:
 
     def live_state(self, video_id: str) -> bool | None:
         """True=live, False=not live, None=unknown or unavailable."""
+        # Retain the start time from this same videos.list response. Keep the
+        # established bool|None return contract for callers and test doubles.
+        self.actual_start_time = None
         try:
             data = self.call("GET", "/videos", {"part": "snippet,liveStreamingDetails,status", "id": video_id})
             items = data.get("items") or []
@@ -161,6 +164,7 @@ class YouTubeAPI:
             item = items[0]
             snippet = item.get("snippet") or {}
             details = item.get("liveStreamingDetails") or {}
+            self.actual_start_time = details.get("actualStartTime")
             state = snippet.get("liveBroadcastContent")
             if state == "live":
                 return not bool(details.get("actualEndTime"))
